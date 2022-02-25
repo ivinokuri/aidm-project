@@ -1,22 +1,31 @@
 
-from torch import nn
-import torch
-
+import numpy as np
+import QNetwork as qn
+import DPlanProcessor as proc
+import DPlanCallback as call
+from rl.agents.dqn import DQNAgent
 from rl.policy import EpsGreedyQPolicy, LinearAnnealedPolicy
-
-AVAIL_GPUS = min(1, torch.cuda.device_count())
+from rl.memory import SequentialMemory
+from keras.optimizers import adam_v2
+from keras.optimizers import rmsprop_v2
 
 class DPlan:
 
     def __init__(self, parsed_args, env):
         print("Init Dplan")
+        self.env = env
+        self.train_env = None
         self.features = parsed_args['features']
+        self.memory_size = parsed_args['memory_size']
         self.hidden_size = parsed_args['hidden_size']
+        self.batch_size = parsed_args['batch_size']
         self.max_epsilon = parsed_args['max_epsilon']
         self.min_epsilon = parsed_args['min_epsilon']
         self.greedy_course = parsed_args['epsilon_course']
-
-        self.model = QNetwork(input_size=self.features,
+        self.epochs = parsed_args['epochs'] # 30000
+        self.steps = parsed_args['steps']
+        self.lr = parsed_args['lr']
+        self.model = qn.QNetwork(input_size=self.features,
                               n_actions=env.action_space.n,
                               hidden_size=self.hidden_size)
         self.policy = LinearAnnealedPolicy(inner_policy=EpsGreedyQPolicy(),
@@ -25,17 +34,54 @@ class DPlan:
                                       value_min=self.min_epsilon,
                                       value_test=0.,
                                       nb_steps=self.greedy_course)
+        self.memory = SequentialMemory(limit=self.memory_size,
+                                  window_length=1)
+        self.optimizer = adam_v2.Adam(learning_rate=self.lr)
+        self.processor = proc.DPLANProcessor(self.env)
+        self.agent = DQNAgent(model=self.model,
+                              policy=self.policy,
+                              nb_actions=self.env.action_space.n,
+                              memory=self.memory,
+                              processor=self.processor,
+                              batch_size=self.batch_size)
+        self.agent.compile(optimizer=self.optimizer)
+        self.weights = self.agent.model.get_weights()
+        self.agent.target_model.set_weights(np.zeros(self.weights.shape))
 
+    def fit(self, env=None, weights_file=None):
+        if env:
+            self.train_env = env
+        else:
+            self.train_env = self.env
+        callback = call.DPlanCallback()
+        self.agent.fit(env=self.train_env,
+                       nb_steps=self.epochs,
+                       action_repetition=1,
+                       callbacks=[callback],
+                       nb_max_episode_steps=self.steps)
+        if weights_file:
+            self.agent.save_weights(weights_file, overwrite=True)
 
-class QNetwork(nn.Module):
+    def load_weights(self, weights_file):
+        self.agent.load_weights(weights_file)
 
-    def __init__(self, input_size: int, n_actions: int=2, hidden_size: int = 128):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, n_actions),
-        )
+    def predict(self, input):
+        """
+        Return anomaly score of input by trained weights
+        :param input:
+        :return: scores
+        """
+        q_values = self.agent.model.predict(input[:, np.newaxis, :])
+        scores = q_values[:, 1]
+        return scores
 
-    def forward(self, x):
-        return self.net(x.float())
+    def predict_label(self, input):
+        """
+        Return labels of the input data
+        :param input:
+        :return: labels
+        """
+        q_values = self.agent.model.predict(input[:, np.newaxis, :])
+        labels = np.argmax(q_values, axis=1)
+
+        return labels
