@@ -7,7 +7,6 @@ from rl.agents.dqn import DQNAgent
 from rl.policy import EpsGreedyQPolicy, LinearAnnealedPolicy
 from rl.memory import SequentialMemory
 from keras.optimizers import adam_v2
-from keras.optimizers import rmsprop_v2
 
 class DPlan:
 

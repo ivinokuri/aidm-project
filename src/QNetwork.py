@@ -3,7 +3,6 @@
 import tensorflow as tf
 import keras
 from keras import Sequential
-from keras.models import Model
 from keras.layers import Input, Flatten, Dense
 
 
