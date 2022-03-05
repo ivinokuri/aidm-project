@@ -1,0 +1,2 @@
+model_checkpoint_path: "Backdoor_9_Backdoor_weights.h4f"
+all_model_checkpoint_paths: "Backdoor_9_Backdoor_weights.h4f"

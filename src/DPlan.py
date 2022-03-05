@@ -10,11 +10,11 @@ from keras.optimizers import adam_v2
 
 class DPlan:
 
-    def __init__(self, parsed_args, env):
+    def __init__(self, parsed_args, env, features):
         print("Init Dplan")
         self.env = env
         self.train_env = None
-        self.features = parsed_args['features']
+        self.features = features
         self.memory_size = parsed_args['memory_size']
         self.hidden_size = parsed_args['hidden_size']
         self.batch_size = parsed_args['batch_size']
