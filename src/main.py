@@ -11,10 +11,12 @@ tf.device("/cpu:0")
 from DPlan import DPlan
 from DPlanEnv import DPlanEnv
 
+
 def prepare_data():
     train_data = "./data/training-set.csv"
     data = pd.read_csv(train_data)
-    sets = ["Analysis", "Backdoor", "DoS", "Exploits", "Fuzzers", "Generic", "Reconnaissance"]
+    sets = ["Analysis", "Backdoor", "DoS", "Exploits", "Fuzzers", "Generic", "Reconnaissance",
+            "Hypothyroid", "Subnormal", "Downstairs", "Upstairs", "Cottonwood", "Douglas-fir", "CupPick"]
     for set in sets:
         result = []
         for row in data.values:
@@ -37,13 +39,13 @@ def prepare_data():
     data.to_csv("./data/testing-set.csv", index=False, header=False)
 
 
-
 def main(parsed_args):
     print("Init process")
     data_path = "./"
     data_folders = ["data"]
-    data_subsets = {"data": ["Analysis", "Backdoor", "DoS", "Exploits", "Fuzzers", "Generic", "Reconnaissance"]}
-    testdata_subset = "original-testing-set.csv"
+    data_subsets = {"data": ["Analysis", "Backdoor", "DoS", "Exploits", "Fuzzers", "Generic", "Reconnaissance",
+            "Hypothyroid", "Subnormal", "Downstairs", "Upstairs", "Cottonwood", "Douglas-fir", "CupPick"]}
+    testdata_subset = "testing-set.csv"
 
     runs = 10
     model_path = "./model"
@@ -58,85 +60,57 @@ def main(parsed_args):
         os.mkdir(result_path)
     for data_f in data_folders:
         subsets = data_subsets[data_f]
-        testdata_path = os.path.join(data_path, data_f, testdata_subset)
-        test_table = pd.read_csv(testdata_path)
-        test_dataset = test_table.values
 
         for subset in subsets:
-            np.random.seed(42)
-            tf.random.set_seed(42)
             data_name = subset
             unknown_dataname = "train/" + subset + ".csv"
             undata_path = os.path.join(data_path, data_f, unknown_dataname)
             table = pd.read_csv(undata_path)
             undataset = table.values
+
+            testdata_path = os.path.join(data_path, data_f, subset + "-" + testdata_subset)
+            test_table = pd.read_csv(testdata_path)
+            test_dataset = test_table.values
+
             rocs = []
             prs = []
-            train_times = []
-            test_times = []
-            # run experiment
             for i in range(runs):
-                print("#######################################################################")
                 print("Dataset: {}".format(subset))
                 print("Run: {}".format(i))
 
                 weights_file = os.path.join(model_path, "{}_{}_{}_weights.h4f".format(subset, i, data_name))
-                # initialize environment and agent
                 tf.compat.v1.reset_default_graph()
                 env = DPlanEnv(data=undataset)
                 model = DPlan(parsed_args=parsed_args, env=env, features=len(undataset[0])-1)
 
-                # train the agent
-                train_time = 0
                 if is_train:
-                    # train DPLAN
-                    train_start = time.time()
                     model.fit(weights_file=weights_file)
-                    train_end = time.time()
-                    train_time = train_end - train_start
-                    print("Train time: {}/s".format(train_time))
 
-                # test the agent
-                test_time = 0
                 if is_test:
                     test_X, test_y = test_dataset[:, :-1], test_dataset[:, -1]
                     model.load_weights(weights_file)
-                    # test DPLAN
-                    test_start = time.time()
                     pred_y = model.predict(test_X)
-                    test_end = time.time()
-                    test_time = test_end - test_start
-                    print("Test time: {}/s".format(test_time))
 
                     roc = roc_auc_score(test_y, pred_y)
                     pr = average_precision_score(test_y, pred_y)
-                    print("{} Run {}: AUC-ROC: {:.4f}, AUC-PR: {:.4f}, train_time: {:.2f}, test_time: {:.2f}".format(
+                    print("{} Run {}: AUC-ROC: {:.4f}, AUC-PR: {:.4f}".format(
                         subset,
                         i,
                         roc,
-                        pr,
-                        train_time,
-                        test_time))
+                        pr))
 
                     rocs.append(roc)
                     prs.append(pr)
-                    train_times.append(train_time)
-                    test_times.append(test_time)
 
             if is_test:
-                # write results
-                writeResults(subset, rocs, prs, train_times, test_times, os.path.join(result_path, result_file))
+                writeResults(subset, rocs, prs, os.path.join(result_path, result_file))
 
 
-def writeResults(name, rocs, prs, train_times, test_times, file_path):
+def writeResults(name, rocs, prs, file_path):
     roc_mean = np.mean(rocs)
     roc_std = np.std(rocs)
     pr_mean = np.mean(prs)
     pr_std = np.std(prs)
-    train_mean = np.mean(train_times)
-    train_std = np.std(train_times)
-    test_mean = np.mean(test_times)
-    test_std = np.std(test_times)
 
     header = True
     if not os.path.exists(file_path):
@@ -144,17 +118,11 @@ def writeResults(name, rocs, prs, train_times, test_times, file_path):
 
     with open(file_path, 'a') as f:
         if not header:
-            f.write("{}, {}, {}, {}, {}\n".format("Name",
-                                                  "AUC-ROC(mean/std)",
-                                                  "AUC-PR(mean/std)",
-                                                  "Train time/s",
-                                                  "Test time/s"))
+            f.write("{}, {}, {}\n".format("Name", "AUC-ROC(mean/std)",
+                                                  "AUC-PR(mean/std)"))
 
-        f.write("{}, {}/{}, {}/{}, {}/{}, {}/{}\n".format(name,
-                                                          roc_mean, roc_std,
-                                                          pr_mean, pr_std,
-                                                          train_mean, train_std,
-                                                          test_mean, test_std))
+        f.write("{}, {:.3f}/{:.4f}, {:.3f}/{:.4f}\n".format(name, roc_mean, roc_std,
+                                                pr_mean, pr_std))
 
 
 if __name__ == '__main__':
