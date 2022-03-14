@@ -9,8 +9,17 @@ from rl.memory import SequentialMemory
 from keras.optimizers import adam_v2
 
 class DPlan:
-
+    """
+    Complete implementation of DPlan by the instructions of authors of the article.
+    We are using keras-rl library or policy, reply buffer and agent.
+    """
     def __init__(self, parsed_args, env, features):
+        """
+        Init DPlan
+        :param parsed_args: runtime parameters
+        :param env: simulator environment
+        :param features: number of features in the data
+        """
         print("Init Dplan")
         self.env = env
         self.train_env = None
@@ -21,7 +30,7 @@ class DPlan:
         self.max_epsilon = parsed_args['max_epsilon']
         self.min_epsilon = parsed_args['min_epsilon']
         self.greedy_course = parsed_args['epsilon_course']
-        self.epochs = parsed_args['epochs'] # 30000
+        self.epochs = parsed_args['epochs']
         self.steps = parsed_args['steps']
         self.lr = parsed_args['lr']
         self.model = qn.QNetwork(input_size=self.features,
@@ -47,11 +56,12 @@ class DPlan:
         self.weights = self.agent.model.get_weights()
         self.agent.target_model.set_weights(np.zeros(self.weights.shape))
 
-    def fit(self, env=None, weights_file=None):
-        if env:
-            self.train_env = env
-        else:
-            self.train_env = self.env
+    def fit(self, weights_file=None):
+        """
+        Training fit function of the method
+        :param weights_file: preloaded weights file
+        """
+        self.train_env = self.env
         callback = call.DPlanCallback()
         self.agent.fit(env=self.train_env,
                        nb_steps=self.epochs,
@@ -62,13 +72,17 @@ class DPlan:
             self.agent.save_weights(weights_file, overwrite=True)
 
     def load_weights(self, weights_file):
+        """
+        Loading trained weights of the network
+        :param weights_file: path to the file
+        """
         self.agent.load_weights(weights_file)
 
     def predict(self, input):
         """
         Return anomaly score of input by trained weights
-        :param input:
-        :return: scores
+        :param input: input data
+        :return: scores of output anomaly or normal
         """
         q_values = self.agent.model.predict(input[:, np.newaxis, :])
         scores = q_values[:, 1]
@@ -77,7 +91,7 @@ class DPlan:
     def predict_label(self, input):
         """
         Return labels of the input data
-        :param input:
+        :param input: input data
         :return: labels
         """
         q_values = self.agent.model.predict(input[:, np.newaxis, :])

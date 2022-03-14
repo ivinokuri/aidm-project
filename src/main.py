@@ -6,13 +6,14 @@ import tensorflow as tf
 
 from sklearn.metrics import roc_auc_score, average_precision_score
 
-tf.device("/cpu:0")
-
 from DPlan import DPlan
 from DPlanEnv import DPlanEnv
 
 
 def prepare_data():
+    """
+    Prepare data to be in the same format
+    """
     train_data = "./data/training-set.csv"
     data = pd.read_csv(train_data)
     sets = ["Analysis", "Backdoor", "DoS", "Exploits", "Fuzzers", "Generic", "Reconnaissance",
@@ -40,6 +41,10 @@ def prepare_data():
 
 
 def main(parsed_args):
+    """
+    Running DPlan training and test
+    :param parsed_args: runtime arguments
+    """
     print("Init process")
     data_path = "./"
     data_folders = ["data"]
@@ -107,6 +112,14 @@ def main(parsed_args):
 
 
 def writeResults(name, rocs, prs, file_path):
+    """
+    Appending results to the results csv
+    :param name:
+    :param rocs:
+    :param prs:
+    :param file_path:
+    :return:
+    """
     roc_mean = np.mean(rocs)
     roc_std = np.std(rocs)
     pr_mean = np.mean(prs)

@@ -44,7 +44,7 @@ class DPLANProcessor(Processor):
         """
         Override process reward function by customizing reward with intrinsic reward
         :param step_reward:
-        :return:
+        :return: total reward
         """
         r = self.reward[self.last_observation]
         return step_reward + r
